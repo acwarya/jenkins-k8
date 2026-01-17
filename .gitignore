@@ -1,0 +1,56 @@
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.project
+.classpath
+.settings/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.cache
+
+# Local environment files
+.env
+.env.local
+
+# Kubernetes local configs (if any)
+*.kubeconfig
+
+# Jenkins data (local testing)
+jenkins-data/
+C:/jenkins-data/
+/mnt/jenkins-data/
+
+# Backup files
+*.backup
+backup/
+
+# Compressed files
+*.zip
+*.tar
+*.gz
+*.rar
+
+# Test output
+test-results/
+coverage/
