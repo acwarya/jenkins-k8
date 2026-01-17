@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-plugins
+  namespace: devops-tools
+data:
+  plugins.txt: |
+    kubernetes
+    workflow-aggregator
+    git
+    configuration-as-code
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-casc-config
+  namespace: devops-tools
+data:
+  jenkins.yaml: |
+    jenkins:
+      systemMessage: "Jenkins configured automatically by Jenkins Configuration as Code"
+      numExecutors: 0
+      
+      securityRealm:
+        local:
+          allowsSignup: false
+          users:
+            - id: "admin"
+              name: "Administrator"
+              password: "admin123"
+      
+      authorizationStrategy:
+        loggedInUsersCanDoAnything:
+          allowAnonymousRead: false
+      
+      clouds:
+        - kubernetes:
+            name: "kubernetes"
+            serverUrl: "https://kubernetes.default"
+            namespace: "devops-tools"
+            jenkinsUrl: "http://jenkins-service.devops-tools.svc.cluster.local:8080"
+            jenkinsTunnel: "jenkins-service.devops-tools.svc.cluster.local:50000"
+            connectTimeout: 5
+            readTimeout: 15
+            containerCapStr: 10
+            maxRequestsPerHostStr: 32
+            retentionTimeout: 5
+            
+            templates:
+              - name: "jenkins-agent"
+                namespace: "devops-tools"
+                label: "jenkins-agent"
+                nodeUsageMode: "NORMAL"
+                idleMinutes: 5
+                containers:
+                  - name: "jnlp"
+                    image: "jenkins/inbound-agent:latest"
+                    alwaysPullImage: false
+                    workingDir: "/home/jenkins/agent"
+                    ttyEnabled: true
+                    resourceRequestCpu: "500m"
+                    resourceRequestMemory: "512Mi"
+                    resourceLimitCpu: "1000m"
+                    resourceLimitMemory: "1Gi"
+                volumes:
+                  - emptyDirVolume:
+                      memory: false
+                      mountPath: "/tmp"
+                yaml: |
+                  spec:
+                    serviceAccountName: jenkins-admin
+    
+    unclassified:
+      location:
+        url: "http://localhost:32000"
+        adminAddress: "admin@localhost"

@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: devops-tools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins-server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: jenkins-server
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      serviceAccountName: jenkins-admin
+      initContainers:
+        - name: install-plugins
+          image: jenkins/jenkins:lts
+          securityContext:
+            runAsUser: 1000
+          env:
+            - name: JENKINS_HOME
+              value: /var/jenkins_home
+            - name: JENKINS_UC
+              value: https://updates.jenkins.io
+            - name: REF
+              value: /usr/share/jenkins/ref
+          command:
+            - bash
+            - -c
+            - |
+              set -ex
+              echo "Installing Jenkins plugins..."
+              
+              # Create plugins directory
+              mkdir -p ${JENKINS_HOME}/plugins
+              
+              # Use jenkins-plugin-cli with proper options
+              jenkins-plugin-cli \
+                --plugin-file /var/jenkins_plugins/plugins.txt \
+                --plugin-download-directory ${JENKINS_HOME}/plugins \
+                --verbose
+              
+              # List installed plugins
+              echo "Plugins installed to ${JENKINS_HOME}/plugins:"
+              ls -lah ${JENKINS_HOME}/plugins/ | head -20
+              
+              echo "Plugin installation complete!"
+          volumeMounts:
+            - name: jenkins-data
+              mountPath: /var/jenkins_home
+            - name: jenkins-plugins
+              mountPath: /var/jenkins_plugins
+              readOnly: true
+      containers:
+        - name: jenkins
+          image: jenkins/jenkins:lts
+          imagePullPolicy: Always
+          env:
+            - name: CASC_JENKINS_CONFIG
+              value: /var/jenkins_config/jenkins.yaml
+            - name: JAVA_OPTS
+              value: "-Djenkins.install.runSetupWizard=false"
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+            requests:
+              memory: "600Mi"
+              cpu: "600m"
+          ports:
+            - name: httpport
+              containerPort: 8080
+            - name: jnlpport
+              containerPort: 50000
+          livenessProbe:
+            httpGet:
+              path: "/login"
+              port: 8080
+            initialDelaySeconds: 180
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: "/login"
+              port: 8080
+            initialDelaySeconds: 150
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: jenkins-data
+              mountPath: /var/jenkins_home
+            - name: jenkins-casc-config
+              mountPath: /var/jenkins_config
+              readOnly: true
+      volumes:
+        - name: jenkins-data
+          persistentVolumeClaim:
+            claimName: jenkins-pv-claim
+        - name: jenkins-casc-config
+          configMap:
+            name: jenkins-casc-config
+        - name: jenkins-plugins
+          configMap:
+            name: jenkins-plugins
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-service
+  namespace: devops-tools
+  annotations:
+      prometheus.io/scrape: 'true'
+      prometheus.io/path:   /
+      prometheus.io/port:   '8080'
+spec:
+  selector:
+    app: jenkins-server
+  type: NodePort
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 32000
+    - name: jnlp
+      port: 50000
+      targetPort: 50000
